@@ -2,6 +2,7 @@ fastapi[standard]==0.115.6
 arch==7.2.0
 pydantic==2.8.2
 requests==2.32.3
+pandas==2.2.2
 numpy<2
 joblib
 polars==1.25.2
