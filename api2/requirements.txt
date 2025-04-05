@@ -4,3 +4,6 @@ pydantic==2.8.2
 requests==2.32.3
 numpy<2
 joblib
+polars==1.25.2
+duckdb==1.2.1
+sqlalchemy==2.0.34
