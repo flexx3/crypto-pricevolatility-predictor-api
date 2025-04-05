@@ -2,6 +2,7 @@
 import os
 import numpy as np
 import pandas as pd
+from datetime import datetime
 from dotenv import load_dotenv
 import polars as pl
 import duckdb
