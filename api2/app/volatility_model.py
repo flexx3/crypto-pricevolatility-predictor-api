@@ -3,7 +3,9 @@ import os
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-import sqlite3
+import polars as pl
+import duckdb
+from sqlalchemy import create_engine, text
 from app.data import api_data, SqlRepository
 load_dotenv()
 #import garch model library
@@ -21,37 +23,55 @@ class Garch_model:
         self.model2_subdirectory = os.environ.get('model2_subdirectory')
         
     #wrangle function to get data
-    def wrangle(self, ticker, use_new_data=True):
-        #set up connection to db
-        connection = sqlite3.connect(database= os.environ.get('DB_NAME'), check_same_thread= False)
-        #instantiate sql repo
-        repo = SqlRepository(connection= connection)
-        cursor = connection.cursor()
-        if use_new_data is True:
-            #instantiate api_data
-            api = api_data()
-            records = api.get_data(ticker)
-            #format the columns
-            if records.columns.to_list() != ['Close', 'High', 'Low', 'Open', 'Volume']:
-                column_list= records.columns.to_list()
-                columns= [val[0] for val in column_list]
-                records.columns= columns
-            query = f"Drop Table If Exists '{ticker}' "
-            cursor.execute(query)
-            connection.commit()
-            data = repo.insert_data(table_name= ticker, records= records, if_exists= 'replace')
-        df = repo.read_table(ticker)
-        connection.close()
-        #calculate returns
-        df['Returns'] = df['Close'].pct_change()*100
-        df.sort_values(by='Date', inplace=True)
-        df.fillna(method='ffill', inplace=True)        
-        return df['Returns'].dropna()
+    def wrangle(self, ticker):
+        #get current date str
+        today= datetime.now().strftime('%Y-%m-%d')
+        #setup conection to db
+        engine= create_engine(f"duckdb:///{os.environ.get('DB_NAME')}")
+        with engine.connect() as conn:
+            #check if table exists
+            result= conn.execute(text(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{self.ticker}'"))
+            table_name= result.fetchone()
+        #if table name exists    
+        if table_name is not None:
+            #instantiate 'sqlrepo' class from data.py library
+            repo= SqlRepository(uri=f"duckdb:///{os.environ.get('DB_NAME')}")
+            #load data from table
+            df= repo.read_table(self.ticker)
+            #check if data corresponds to the most recent date
+            if (df.is_empty()) or (df['Date'].max() != datetime.strptime(today, '%Y-%m-%d').date()):
+                api= api_data(self.ticker)
+                data= api.get_data()
+                repo.insert_data(table_name=self.ticker, records=data)
+                #load data from table
+                df= repo.read_table(self.ticker)
+            else:
+                df= df
+        #if table does not exists in database
+        else:
+            #instantiate 'api_data' class from data.py library
+            api= api_data(self.ticker)
+            data= api.get_data()
+            #instantiate 'sqlrepo' class from data.py library
+            repo= SqlRepository(uri=f"duckdb:///{os.environ.get('DB_NAME')}")
+            #setup connection to execute and commit changes to the db based on the below query
+            with engine.connect() as conn:
+                conn.execute(text(f'Drop Table If Exists "{self.ticker}"'))
+                conn.commit()
+            #insert data into database
+            repo.insert_data(table_name=self.ticker, records=data)
+            #load data from table
+            df=repo.read_table(self.ticker)
+        return df
         
     #create and fit model
     def fit(self, p=1, q=1):
-        data= self.wrangle(self.ticker, use_new_data=True)
-        self.model = arch_model(data, p=p, q=q, mean='Zero', vol='Garch').fit(disp='off')
+        data= self.wrangle(self.ticker)
+        data= data.to_pandas()
+        data.set_index('Date', inplace=True)
+        data['Return']= data['Close'].pct_change() *100
+        data['Return']= data['Return'].dropna()
+        self.model = arch_model(data['Return'], p=p, q=q, mean='Zero', vol='Garch').fit(disp='off')
     #format predictions
     def __format_predictions(self, forecasts):
         #get start date
