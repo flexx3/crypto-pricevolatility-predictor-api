@@ -40,7 +40,7 @@ class api_data:
         )
         return df3
     
-#load into a sqlite db
+#load into a duckdb db
 class SqlRepository:
     
     def __init__(self, uri):
