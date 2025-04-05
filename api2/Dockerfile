@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 COPY ./app /code/app
 
 
-CMD ["fastapi", "run", "app/volatility_model_api.py", "--port", "8002"]
+CMD ["fastapi", "run", "app/volatility_model_api.py", "--port", "8003"]
