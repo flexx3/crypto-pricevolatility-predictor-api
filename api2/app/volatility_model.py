@@ -70,6 +70,7 @@ class Garch_model:
         data= self.wrangle(self.ticker)
         data= data.to_pandas()
         data.set_index('Date', inplace=True)
+        data.sort_values(by='Date', inplace=True)
         data['Return']= data['Close'].pct_change()*100
         data.dropna(axis=0, inplace=True)
         self.model = arch_model(data['Return'], p=p, q=q, mean='Zero', vol='Garch').fit(disp='off')
