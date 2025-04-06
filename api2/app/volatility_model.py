@@ -70,9 +70,8 @@ class Garch_model:
         data= self.wrangle(self.ticker)
         data= data.to_pandas()
         data.set_index('Date', inplace=True)
-        data['Return']= data['Close'].pct_change() *100
-        data['Return']= data['Return'].dropna()
-        self.model = arch_model(data['Return'], p=p, q=q, mean='Zero', vol='Garch').fit(disp='off')
+        data['Return']= data['Close'].pct_change()*100
+        self.model = arch_model(data['Return'].dropna(inplace=True), p=p, q=q, mean='Zero', vol='Garch').fit(disp='off')
     #format predictions
     def __format_predictions(self, forecasts):
         #get start date
